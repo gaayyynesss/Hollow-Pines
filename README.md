@@ -1,31 +1,61 @@
-# Hollow Pines
+<p align="center">
+  <img src="icon-512.png" width="130" alt="Hollow Pines icon">
+</p>
 
-A low-poly **survival-horror** game that runs in any browser — no download, no install.
-Works on iPad, iPhone, Chromebook and PC.
+<h1 align="center">HOLLOW PINES</h1>
+<p align="center"><i>A low-poly survival-horror. Relight the beacons before it finds you.</i></p>
 
-Your truck died on the old fire road. Relight all five ranger **signal beacons** so the
-lookout can find you — but something tall and pale walks the woods, and it hunts by light
-and sound. Find fuel, feed yourself, keep the beam low, and get out.
+<p align="center">
+  <a href="https://gaayyynesss.github.io/Hollow-Pines/">
+    <img src="https://img.shields.io/badge/%E2%96%B6%20PLAY%20NOW-8b1a12?style=for-the-badge&labelColor=05060a" alt="Play Now" height="46">
+  </a>
+</p>
 
-### Difficulties
-- **Easy** — a walk with a pulse.
-- **Medium** — the intended night.
-- **Hard** — it's already awake.
-- **COOKED** — you are not getting out.
+<p align="center"><b><a href="https://gaayyynesss.github.io/Hollow-Pines/">https://gaayyynesss.github.io/Hollow-Pines/</a></b></p>
+
+---
+
+Your truck died on the old fire road and the forest swallowed the light. Relight all five
+ranger **signal beacons** so the lookout can find you — but something tall and pale walks
+the pines, and it hunts by **light** and **sound**. Find fuel, feed yourself, keep the beam
+low, and get out.
+
+**No download. No install.** Plays in any browser — iPad, iPhone, Chromebook or PC.
+On iPhone/iPad, open the link, tap **Share → Add to Home Screen** to play full-screen like an app.
+
+## 👥 Solo or Co-op
+Pick **Solo**, or **Co-op online** and type a **match code** — friends who open the link and
+type the same code drop into the same woods with you. Light the beacons together before the
+hunter picks you off one by one. (Co-op connects players directly; on some strict networks it
+may fall back to solo.)
+
+## 💀 Difficulty
+| Mode | Tagline |
+|------|---------|
+| **Easy** | A walk with a pulse |
+| **Medium** | The intended night |
+| **Hard** | It's already awake |
+| **COOKED** | You are not getting out |
 
 Higher difficulty = a faster, sharper-eyed hunter, a flashlight that burns battery quicker,
 legs that tire faster, and hunger that bites sooner.
 
-### Controls
-- **Move:** left thumb / WASD (push to sprint, Shift)
-- **Look:** right thumb / mouse
-- **Flashlight:** LIGHT button / F
-- **Crouch (quiet):** CROUCH / C
-- **Use / take / eat:** USE / E
+## 🎮 Controls
+| Action | Touch | Keyboard + mouse |
+|--------|-------|------------------|
+| Move | Left thumb (push to sprint) | WASD (Shift = sprint) |
+| Look | Right thumb | Mouse |
+| Flashlight | **LIGHT** | F |
+| Crouch (quiet) | **CROUCH** | C |
+| Use / take / eat | **USE** | E |
+| Pause | **II** | Esc |
 
-## Put it online (GitHub Pages)
-1. Upload every file in this folder to your repository.
-2. **Settings → Pages** → Source *Deploy from a branch* → branch **main**, folder **/ (root)** → Save.
-3. Live at `https://<your-username>.github.io/<repo>/` after ~1 minute.
+## 🔦 How to survive
+- **Fuel** powers beacons — carry a cell, use it on a beacon.
+- **Rations** restore hunger — eat the tins you find.
+- The **flashlight** helps you search but draws the hunter. Kill it to hide.
+- **Crouch** to move quietly. **Break line of sight** and stay still in the dark to lose a chase.
+- Watch for the **jumpscares.** It likes to get close.
 
-*Add to Home Screen from your browser's Share menu to play full-screen like an app.*
+---
+<p align="center"><sub>Hollow Pines • made for the browser • Add to Home Screen for the full-screen app experience</sub></p>

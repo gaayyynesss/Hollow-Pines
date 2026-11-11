@@ -8,12 +8,55 @@
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 <meta name="apple-mobile-web-app-title" content="Hollow Pines">
 <meta name="theme-color" content="#05060a">
-<meta name="description" content="Hollow Pines — a low-poly survival-horror. Relight the ranger beacons before the thing in the woods finds you. Easy to COOKED difficulty. Plays in any browser, no install.">
+<meta name="description" content="Hollow Pines — a low-poly survival-horror. Relight the ranger beacons before the thing in the woods finds you. Solo or online co-op, Easy to COOKED. Plays in any browser, no install.">
 <link rel="apple-touch-icon" href="apple-touch-icon.png">
 <link rel="icon" href="icon-192.png">
 <link rel="manifest" href="manifest.webmanifest">
 <style>html,body{margin:0;background:#05060a}</style>
-<script>(function(){var B='20261111152547';try{fetch(location.pathname+'?c='+Date.now(),{cache:'no-store'}).then(function(r){return r.ok?r.text():''}).then(function(t){var m=t.match(/var B='(\d+)'/);if(m&&m[1]!==B&&sessionStorage.getItem('hp-rl')!==m[1]){sessionStorage.setItem('hp-rl',m[1]);location.replace(location.pathname+'?v='+m[1]+location.hash);}}).catch(function(){});}catch(e){}})();</script>
+<script src="https://unpkg.com/peerjs@1.5.4/dist/peerjs.min.js"></script>
+<script>/* Hollow Pines co-op over PeerJS — no accounts. One player per room becomes the hub. */
+(function(){
+function makeRoom(hubId){
+  var self={ id:null, pr:{}, listeners:[], peersMap:{}, isHub:false, hub:null, conns:{}, dead:false, timer:null, lastSend:0, started:false };
+  function snapshot(){ var out=[{peer:self.id||'me',sameTab:true,presence:self.pr}]; for(var id in self.peersMap){ if(id===self.id)continue; out.push({peer:id,sameTab:false,presence:self.peersMap[id]||{}}); } return out; }
+  function emit(){ var s=snapshot(); self.listeners.forEach(function(fn){ try{fn({peers:s});}catch(e){} }); }
+  function startHub(){ self.isHub=true; self.id=hubId; self.peersMap[self.id]=self.pr;
+    self.hub.on('connection',function(c){ c.on('open',function(){ self.conns[c.peer]=c; }); c.on('data',function(d){ if(d&&d.t==='p'){ self.peersMap[c.peer]=d.pr||{}; } });
+      var drop=function(){ delete self.conns[c.peer]; delete self.peersMap[c.peer]; }; c.on('close',drop); c.on('error',drop); });
+    emit();
+  }
+  function connectHub(){ self.peer=new Peer(undefined,{debug:0});
+    self.peer.on('open',function(id){ self.id=id; self.peersMap[self.id]=self.pr; self.conn=self.peer.connect(hubId,{reliable:true,serialization:'json'});
+      self.conn.on('open',function(){}); self.conn.on('data',function(d){ if(d&&d.t==='s'&&d.s){ var keep={}; keep[self.id]=self.pr; for(var k in d.s){ if(k!==self.id) keep[k]=d.s[k]; } self.peersMap=keep; emit(); } });
+      self.conn.on('close',function(){ reconnect(800); }); self.conn.on('error',function(){ reconnect(1200); }); emit(); });
+    self.peer.on('disconnected',function(){ try{self.peer.reconnect();}catch(e){} });
+    self.peer.on('error',function(){ reconnect(3000); });
+  }
+  function reconnect(ms){ if(self.dead)return; try{ if(self.peer)self.peer.destroy(); }catch(e){} self.peer=null; self.hub=null; self.conn=null; self.isHub=false; self.conns={}; setTimeout(claim,ms||600); }
+  function claim(){ if(self.dead)return; var settled=false; self.hub=new Peer(hubId,{debug:0});
+    self.hub.on('open',function(){ settled=true; self.peer=self.hub; startHub(); });
+    self.hub.on('disconnected',function(){ try{self.hub.reconnect();}catch(e){} });
+    self.hub.on('error',function(e){ if(!settled&&e&&e.type==='unavailable-id'){ settled=true; try{self.hub.destroy();}catch(x){} connectHub(); } else if(!settled){ reconnect(3000); } });
+  }
+  function ensure(){ if(self.started)return; self.started=true; if(!window.Peer){ return; } claim();
+    self.timer=setInterval(function(){ if(self.dead||!self.id)return; var now=Date.now();
+      if(self.isHub){ self.peersMap[self.id]=self.pr; var snap={}; for(var id in self.peersMap) snap[id]=self.peersMap[id]; for(var k in self.conns){ var c=self.conns[k]; if(c&&c.open){ try{c.send({t:'s',s:snap});}catch(e){} } } emit(); }
+      else if(self.conn&&self.conn.open&&(now-self.lastSend>60)){ self.lastSend=now; try{self.conn.send({t:'p',pr:self.pr});}catch(e){} }
+    },66);
+  }
+  var api={
+    onPeers:function(fn){ self.listeners.push(fn); ensure(); setTimeout(emit,0); return function(){}; },
+    peers:function(){ ensure(); return snapshot(); },
+    presence:function(obj){ self.pr=obj||{}; ensure(); return Promise.resolve(); },
+    join:function(sub){ return Promise.resolve(makeRoom('hollowpines-'+String(sub))); },
+    leave:function(){ self.dead=true; clearInterval(self.timer); setTimeout(function(){ try{ if(self.peer)self.peer.destroy(); if(self.hub)self.hub.destroy(); }catch(e){} },200); return Promise.resolve(); }
+  };
+  return api;
+}
+window.__HPnet=function(name){ return makeRoom('hollowpines-'+String(name)); };
+})();
+</script>
+<script>(function(){var B='20261111204248';try{fetch(location.pathname+'?c='+Date.now(),{cache:'no-store'}).then(function(r){return r.ok?r.text():''}).then(function(t){var m=t.match(/var B='(\d+)'/);if(m&&m[1]!==B&&sessionStorage.getItem('hp-rl')!==m[1]){sessionStorage.setItem('hp-rl',m[1]);location.replace(location.pathname+'?v='+m[1]+location.hash);}}).catch(function(){});}catch(e){}})();</script>
 </head>
 <body>
 <title>Hollow Pines</title>
@@ -40,6 +83,9 @@ button{font-family:inherit}
 #grade{position:absolute;inset:0;background:radial-gradient(ellipse at center,transparent 42%,rgba(0,0,0,.72) 100%);mix-blend-mode:multiply}
 #fear{position:absolute;inset:0;background:radial-gradient(ellipse at center,transparent 30%,rgba(120,10,8,.0) 75%);opacity:0;transition:opacity .4s}
 #flashfx{position:absolute;inset:0;background:#fff;opacity:0}
+#jump{position:absolute;inset:0;background:#000 center/cover no-repeat;opacity:0;z-index:5}
+#jump.show{opacity:1;animation:jolt .32s steps(3) infinite}
+@keyframes jolt{0%{transform:scale(1.02) translate(0,0)}33%{transform:scale(1.08) translate(-1%,1%)}66%{transform:scale(1.05) translate(1%,-1%)}}
 .corner{position:absolute;display:grid;gap:7px}
 .bl{left:max(16px,env(safe-area-inset-left));bottom:calc(16px + env(safe-area-inset-bottom))}
 .tl{left:max(16px,env(safe-area-inset-left));top:calc(14px + env(safe-area-inset-top))}
@@ -113,6 +159,13 @@ button{font-family:inherit}
 .guide{display:grid;grid-template-columns:auto 1fr;gap:8px 16px;background:var(--panel);border:1px solid var(--line);padding:16px}
 .guide b{color:var(--ember);font:500 13px var(--type)}
 .guide span{font:400 14px var(--head);color:var(--ink)}
+.modeseg{display:flex;gap:2px;max-width:460px;margin:0 auto;width:100%;border:1px solid var(--line)}
+.modeseg button{flex:1;padding:11px 6px;background:none;border:0;color:var(--dim);font:600 14px var(--head);letter-spacing:.12em;text-transform:uppercase;cursor:pointer}
+.modeseg button + button{border-left:1px solid var(--line)}
+.modeseg button[aria-pressed=true]{background:var(--ember);color:#1a0c02}
+.codewrap{max-width:460px;margin:0 auto;width:100%}
+.codewrap input{width:100%;box-sizing:border-box;font:400 15px var(--type);color:var(--ink);background:rgba(0,0,0,.4);border:1px solid var(--line);padding:10px 12px}
+.online{max-width:460px;margin:-4px auto 0;width:100%;font:400 12px var(--type);color:var(--dim);text-align:center;min-height:16px}
 .diffs{display:grid;gap:9px;max-width:460px;margin:2px auto 0;width:100%}
 .diff{display:grid;gap:3px;text-align:left;padding:12px 15px;border:1px solid var(--line);background:var(--panel);color:var(--ink);cursor:pointer}
 .diff:hover{border-color:var(--ember)}
@@ -130,7 +183,7 @@ button{font-family:inherit}
 <canvas id="view"></canvas>
 
 <div id="hud" hidden>
-  <div id="grade"></div><div id="fear"></div><div id="flashfx"></div>
+  <div id="grade"></div><div id="fear"></div><div id="jump"></div><div id="flashfx"></div>
   <div id="obj">Signal beacons lit <b id="beaconCt">0 / 5</b><span id="objsub">Find fuel cells, then light the beacons</span></div>
   <div id="compass"><canvas id="compassCv" width="520" height="40"></canvas></div>
   <div class="corner bl">
@@ -157,6 +210,9 @@ button{font-family:inherit}
 
     <div id="tab-main">
       <p class="story">Your truck died on the old fire road and the forest swallowed the light. Five ranger <b style="color:var(--sig)">signal beacons</b> still stand out there — relight them all and the lookout will see you. Find the fuel. Keep the beam low. <b style="color:var(--blood)">Something walks these pines, and it listens.</b></p>
+      <div class="modeseg" id="modeSeg"><button type="button" data-mode="solo" aria-pressed="true">Solo</button><button type="button" data-mode="coop" aria-pressed="false">Co-op online</button></div>
+      <div class="codewrap" id="codeWrap" hidden><input id="codeIn" maxlength="18" autocomplete="off" spellcheck="false" placeholder="Match code — friends type the same one"></div>
+      <div class="online" id="onlineLine"></div>
       <div class="diffs" id="diffList"></div>
       <div class="acts">
         <button class="btn go" id="playBtn" type="button">Enter the woods</button>
@@ -228,6 +284,13 @@ const DIFFS={
 };
 let difficulty=store.get('diff','medium'); if(!DIFFS[difficulty])difficulty='medium';
 let D=DIFFS[difficulty];
+let gameMode=store.get('mode','solo');
+let matchCode=String(store.get('code','')||'');
+let playerName=String(store.get('name','')||'').slice(0,14)||('Ranger-'+Math.floor(10+Math.random()*90));
+// networking
+let baseRoom=null,net=null,myPeer='me',lobby=[];
+const NET={co:false,isHost:false,hostPeer:null,ep:0,players:new Map(),sendT:0,beat:0,frame:0,
+  bk:0,fk:0,rk:0,down:{},ov:'',ovT:0,hunterV:true};
 
 /* ---------- renderer ---------- */
 const canvas=$('view');
@@ -327,10 +390,10 @@ let rockMesh,bushMesh,stumpMesh;
 const stumpGeo=new THREE.CylinderGeometry(0.5,0.6,0.7,7);
 
 // seeded placement
-let seed=99;const rnd=()=>{seed=seed+0x6D2B79F5|0;let t=Math.imul(seed^seed>>>15,1|seed);t=t+Math.imul(t^t>>>7,61|t)^t;return((t^t>>>14)>>>0)/4294967296;};
+let worldSeed=99;let seed=99;const rnd=()=>{seed=seed+0x6D2B79F5|0;let t=Math.imul(seed^seed>>>15,1|seed);t=t+Math.imul(t^t>>>7,61|t)^t;return((t^t>>>14)>>>0)/4294967296;};
 let trees=[],rocks=[],bushList=[],stumps=[];
 function buildForest(){
-  seed=99;trees=[];rocks=[];bushList=[];stumps=[];colliders.length=0;bushes.length=0;
+  seed=worldSeed>>>0;trees=[];rocks=[];bushList=[];stumps=[];colliders.length=0;bushes.length=0;
   // dense ring wall + scattered interior
   for(let i=0;i<340;i++){
     let x,z,d,tries=0;
@@ -352,6 +415,13 @@ function buildForest(){
   rockMesh=mk(rockGeo,rockMat,rocks,(mx,o)=>mx.compose(new THREE.Vector3(o.x,o.s*0.3,o.z),new THREE.Quaternion().setFromEuler(new THREE.Euler(rnd(),o.r,rnd())),new THREE.Vector3(o.s,o.s*0.7,o.s)));
   bushMesh=mk(bushGeo,bushMat,bushList,(mx,o)=>mx.compose(new THREE.Vector3(o.x,o.s*0.5,o.z),new THREE.Quaternion().setFromEuler(new THREE.Euler(0,o.r,0)),new THREE.Vector3(o.s*1.3,o.s*0.9,o.s*1.3)));
   stumpMesh=mk(stumpGeo,barkMat,stumps,(mx,o)=>mx.compose(new THREE.Vector3(o.x,0.35,o.z),new THREE.Quaternion().setFromEuler(new THREE.Euler(0,o.r,0)),new THREE.Vector3(1,1,1)));
+}
+function placeItems(){
+  beacons.forEach(b=>scene.remove(b.g));beacons.length=0;fuels.forEach(f=>scene.remove(f.g));fuels.length=0;rations.forEach(f=>scene.remove(f.g));rations.length=0;
+  if(escapeMesh){scene.remove(escapeMesh.parent);escapeMesh=null;}escapePt=null;
+  for(let i=0;i<5;i++){const a=i/5*Math.PI*2+rnd()*0.4,rr=22+rnd()*(R-30);makeBeacon(Math.cos(a)*rr,Math.sin(a)*rr);}
+  for(let i=0;i<D.fuels;i++){const pp=openPoint(10,R-6);makeFuel(pp.x,pp.z);}
+  for(let i=0;i<D.rations;i++){const pp=openPoint(8,R-6);makeRation(pp.x,pp.z);}
 }
 function collide(p,r){
   for(const c of colliders){const dx=p.x-c.x,dz=p.z-c.z,d=Math.hypot(dx,dz),m=r+c.r;if(d<m&&d>1e-4){p.x=c.x+dx/d*m;p.z=c.z+dz/d*m;}}
@@ -461,6 +531,42 @@ const sfx={
 };
 
 /* ---------- HUD ---------- */
+const jumpEl=$('jump');
+// pale face drawn to a data url once
+const faceURL=(()=>{
+  const c=document.createElement('canvas');c.width=512;c.height=512;const g=c.getContext('2d');
+  g.fillStyle='#000';g.fillRect(0,0,512,512);
+  const cx=256,cy=250;
+  // gaunt head
+  const hg=g.createRadialGradient(cx,cy-20,20,cx,cy,230);hg.addColorStop(0,'#d8d2c4');hg.addColorStop(0.6,'#9a9384');hg.addColorStop(1,'#1a1712');
+  g.fillStyle=hg;g.beginPath();g.ellipse(cx,cy,150,200,0,0,7);g.fill();
+  // cheek hollows
+  g.fillStyle='rgba(20,16,12,.55)';g.beginPath();g.ellipse(cx-78,cy+40,42,70,0.2,0,7);g.fill();g.beginPath();g.ellipse(cx+78,cy+40,42,70,-0.2,0,7);g.fill();
+  // eye sockets (deep black) with faint red glow
+  for(const ex of [cx-62,cx+62]){
+    g.fillStyle='#000';g.beginPath();g.ellipse(ex,cy-30,46,56,0,0,7);g.fill();
+    const eg=g.createRadialGradient(ex,cy-20,2,ex,cy-20,30);eg.addColorStop(0,'rgba(255,40,20,.9)');eg.addColorStop(1,'rgba(255,40,20,0)');g.fillStyle=eg;g.beginPath();g.arc(ex,cy-18,30,0,7);g.fill();
+    g.fillStyle='#ff5030';g.beginPath();g.arc(ex,cy-18,7,0,7);g.fill();
+  }
+  // nose slit
+  g.strokeStyle='rgba(10,8,6,.8)';g.lineWidth=6;g.beginPath();g.moveTo(cx-10,cy+10);g.lineTo(cx-18,cy+60);g.moveTo(cx+10,cy+10);g.lineTo(cx+18,cy+60);g.stroke();
+  // gaping screaming mouth
+  g.fillStyle='#05020a';g.beginPath();g.ellipse(cx,cy+120,54,78,0,0,7);g.fill();
+  g.fillStyle='#1a0f12';g.beginPath();g.ellipse(cx,cy+118,40,60,0,0,7);g.fill();
+  // jagged teeth
+  g.fillStyle='#c9c2ac';for(let i=-3;i<=3;i++){const x=cx+i*15;g.beginPath();g.moveTo(x-7,cy+62);g.lineTo(x+7,cy+62);g.lineTo(x,cy+84);g.fill();g.beginPath();g.moveTo(x-7,cy+178);g.lineTo(x+7,cy+178);g.lineTo(x,cy+156);g.fill();}
+  // grime streaks
+  g.strokeStyle='rgba(10,8,6,.25)';g.lineWidth=3;for(let i=0;i<40;i++){const x=cx+(Math.random()-.5)*280,y=cy+(Math.random()-.5)*360;g.beginPath();g.moveTo(x,y);g.lineTo(x,y+10+Math.random()*40);g.stroke();}
+  const v=g.createRadialGradient(cx,cy,180,cx,cy,300);v.addColorStop(0,'rgba(0,0,0,0)');v.addColorStop(1,'rgba(0,0,0,1)');g.fillStyle=v;g.fillRect(0,0,512,512);
+  return c.toDataURL('image/png');
+})();
+jumpEl.style.backgroundImage='url('+faceURL+')';
+let jumpT=0;
+function jumpscare(dur,loud){
+  jumpT=dur;jumpEl.classList.add('show');
+  if(actx){sfx.screech();if(loud){nz(0.25,0.6,120);beep(1600,0.3,'square',0.3,180);}}
+  if(navigator.vibrate)try{navigator.vibrate(loud?[0,120,40,120]:60);}catch(e){}
+}
 const hud={batt:$('battFill'),stam:$('stamFill'),hung:$('hungFill'),fuel:$('fuelLbl'),beaconCt:$('beaconCt'),prompt:$('prompt'),ret:$('reticle'),fear:$('fear'),banner:$('banner'),sub:$('subtitle'),whisper:$('whisper'),grade:$('grade'),flashfx:$('flashfx')};
 let bannerT=0,subT=0,flashT=0;
 function updHud(){
@@ -496,7 +602,8 @@ function drawCompass(){
 /* ---------- escape ---------- */
 let escapePt=null,escapeLight=null,escapeMesh=null;
 function openEscape(){
-  const p=openPoint(R*0.5,R*0.78);escapePt=p;
+  let es=(worldSeed*48271+7)>>>0;const er=()=>{es=es+0x6D2B79F5|0;let t=Math.imul(es^es>>>15,1|es);t=t+Math.imul(t^t>>>7,61|t)^t;return((t^t>>>14)>>>0)/4294967296;};
+  const a=er()*Math.PI*2,rr=R*0.5+er()*(R*0.78-R*0.5);const p={x:Math.cos(a)*rr,z:Math.sin(a)*rr};escapePt=p;
   const g=new THREE.Group();g.position.set(p.x,0,p.z);
   const pole=new THREE.Mesh(new THREE.CylinderGeometry(0.06,0.06,3,6),new THREE.MeshStandardMaterial({color:0x333,roughness:0.6}));pole.position.y=1.5;g.add(pole);
   escapeLight=new THREE.PointLight(0xff6a2a,0,30,2);escapeLight.position.y=3;g.add(escapeLight);
@@ -516,30 +623,42 @@ function setMenu(which){
   input.mx=input.mz=0;input.act=false;stickId=lookId=null;$('stick').style.opacity=0;
   try{if(document.pointerLockElement)document.exitPointerLock();}catch(e){}
 }
-function startGame(){
-  ensureAudio();
-  buildForest();
-  // place beacons spread around, fuels scattered (more than beacons so some searching)
+function buildRun(){
   D=DIFFS[difficulty];
-  beacons.forEach(b=>scene.remove(b.g));beacons.length=0;fuels.forEach(f=>scene.remove(f.g));fuels.length=0;rations.forEach(f=>scene.remove(f.g));rations.length=0;
-  if(escapeMesh){scene.remove(escapeMesh.parent);escapeMesh=null;escapePt=null;}
-  for(let i=0;i<5;i++){const a=i/5*Math.PI*2+rnd()*0.4,rr=22+rnd()*(R-30);makeBeacon(Math.cos(a)*rr,Math.sin(a)*rr);}
-  for(let i=0;i<D.fuels;i++){const p=openPoint(10,R-6);makeFuel(p.x,p.z);}
-  for(let i=0;i<D.rations;i++){const p=openPoint(8,R-6);makeRation(p.x,p.z);}
+  worldSeed=(hashCode((NET.co?matchCode||'open':'solo')+'|'+NET.ep)+NET.ep*2654435761)>>>0;
+  buildForest();placeItems();
   if(!hunter)makeHunter();
   hunter.g.visible=false;hunter.state='idle';hunter.spawnDelay=D.spawn;hunter.alert=0;hunter.seen=0;hunter.speed=2.6*D.huntSpeed;
   const sp=openPoint(0,3);
-  Object.assign(P,{pos:new THREE.Vector3(sp.x,1.62,sp.z),yaw:rnd()*6,pitch:0,vx:0,vz:0,bob:0,crouch:false,crouchT:0,light:false,batt:100,stam:100,stWait:0,fuel:0,beaconsLit:0,alive:true,escaped:false,noise:0,time:0,grabbed:0,hunger:100,starveT:0});
+  Object.assign(P,{pos:new THREE.Vector3(sp.x,1.62,sp.z),yaw:rnd()*6,pitch:0,vx:0,vz:0,bob:0,crouch:false,crouchT:0,light:S.autoLight,batt:100,stam:100,stWait:0,fuel:0,beaconsLit:0,alive:true,escaped:false,esc:0,noise:0,time:0,grabbed:0,hunger:100,starveT:0});
   hunter.x=Math.cos(P.yaw)*-50;hunter.z=Math.sin(P.yaw)*-50;
-  spot.intensity=0;fill.intensity=0.5;
+  NET.bk=NET.fk=NET.rk=0;NET.down={};NET.ov='';NET.ovT=0;NET._ovfired=false;myBits.bk=myBits.fk=myBits.rk=0;
+  spot.intensity=0;fill.intensity=0.5;jumpT=0;jumpEl.classList.remove('show');jumpEl.style.opacity=0;
   updHud();applyQuality();
+}
+async function startGame(){ // kept name for existing wiring
+  ensureAudio();
+  NET.co=(gameMode==='coop');
+  if(NET.co){
+    $('playBtn').textContent='Linking…';$('playBtn').disabled=true;
+    net=await joinMatch(matchCode);
+    $('playBtn').disabled=false;$('playBtn').textContent='Enter the woods';
+    if(net){ net.presence&&net.presence({n:playerName,tm:1,x:0,z:0,y:0,c:0,l:0,a:1,t:0,df:difficulty,co:1}).catch(()=>{}); await new Promise(r=>setTimeout(r,900)); 
+      // adopt host's epoch/difficulty if a host already present
+      let hp=null; if(net.peers)for(const q of net.peers()){if(q.sameTab)continue;const pr=q.presence;if(pr&&pr.co&&typeof pr.ep==='number'&&(!hp||q.peer<hp.peer))hp=q;}
+      if(hp){NET.ep=hp.presence.ep;if(DIFFS[hp.presence.df])difficulty=hp.presence.df;}
+    } else { NET.co=false; }
+  }
+  for(const e of [...NET.players.values()])removeRemote(e);NET.players.clear();
+  NET.frame=0;NET.sendT=0;
+  buildRun();
   setMenu('play');bannerT=0;hud.banner.style.opacity=0;
-  say('Find the fuel cells. Light the five beacons.',5);
-  if(isTouch)lockHintClear();else lockPointer();
+  say(NET.co?'Co-op: work together. Light the five beacons.':'Find the fuel cells. Light the five beacons.',5);
+  if(!isTouch)lockPointer();
   clock.getDelta();
 }
 function die(){
-  if(!P.alive)return;P.alive=false;state='dead';P.grabbed=1.2;sfx.screech();
+  if(!P.alive)return;P.alive=false;state='dead';P.grabbed=1.2;jumpscare(1.1,true);
   flashT=0.5;if(droneGain)droneGain.gain.setTargetAtTime(0,actx.currentTime,0.3);
   setTimeout(()=>{
     best=Math.max(best||0,P.beaconsLit);store.set('best',best);
@@ -575,7 +694,8 @@ function renderDiffs(){
 }
 $('playBtn').onclick=startGame;
 $('resumeBtn').onclick=resume;
-$('quitBtn').onclick=()=>{state='menu';setMenu('main');refreshBest();};
+function leaveMatch(){try{if(net&&net.leave)net.leave();}catch(e){}net=null;NET.co=false;for(const e of [...NET.players.values()])removeRemote(e.v);NET.players.clear();}
+$('quitBtn').onclick=()=>{leaveMatch();state='menu';setMenu('main');refreshBest();initLobby();};
 $('howBtn').onclick=()=>setMenu('how');$('howBack').onclick=()=>setMenu('main');
 $('setBtn').onclick=()=>{setMenu('set');setBackTo='main';};
 $('setBtn2').onclick=()=>{setMenu('set');setBackTo='pause';};
@@ -689,22 +809,108 @@ function updateInteract(){
   }
   hud.prompt.innerHTML=txt;hud.prompt.style.opacity=txt?1:0;hud.ret.classList.toggle('act',!!nearTarget&&(nearTarget.type!=='beacon'||P.fuel>0));
   if(input.act&&nearTarget){
-    if(nearTarget.type==='fuel'){nearTarget.ref.taken=true;scene.remove(nearTarget.ref.g);P.fuel++;sfx.pickup();updHud();say('Fuel cell. '+(P.fuel)+' on hand.',2.2);}
-    else if(nearTarget.type==='ration'){nearTarget.ref.taken=true;scene.remove(nearTarget.ref.g);P.hunger=Math.min(100,P.hunger+45);sfx.pickup();updHud();say('Cold rations. A little strength back.',2.2);}
-    else if(P.fuel>0){P.fuel--;lightBeacon(nearTarget.ref);updHud();}
+    if(nearTarget.type==='fuel'){const i=fuels.indexOf(nearTarget.ref);if(i>=0)myBits.fk|=1<<i;nearTarget.ref.taken=true;scene.remove(nearTarget.ref.g);P.fuel++;sfx.pickup();updHud();say('Fuel cell. '+(P.fuel)+' on hand.',2.2);}
+    else if(nearTarget.type==='ration'){const i=rations.indexOf(nearTarget.ref);if(i>=0)myBits.rk|=1<<i;nearTarget.ref.taken=true;scene.remove(nearTarget.ref.g);P.hunger=Math.min(100,P.hunger+45);sfx.pickup();updHud();say('Cold rations. A little strength back.',2.2);}
+    else if(P.fuel>0){P.fuel--;const i=beacons.indexOf(nearTarget.ref);if(i>=0)myBits.bk|=1<<i;lightBeacon(nearTarget.ref);updHud();}
     else sfx.deny();
   }
   input.act=false;
 }
 function lightBeacon(b){
   b.lit=true;b.bulbMat.emissive.setHex(0x3fd89a);b.bulbMat.color.setHex(0x9fe8c6);b.light.intensity=1.6;b.ping=1;
-  P.beaconsLit++;sfx.beacon();
+  if(!NET.co)P.beaconsLit++;
+  sfx.beacon();
   // alert the hunter to the light flare
   if(hunter){hunter.alert=Math.max(hunter.alert,0.6);hunter.wp={x:b.x,z:b.z};}
-  if(P.beaconsLit>=5)openEscape();
-  else{banner('BEACON '+P.beaconsLit+' LIT',(5-P.beaconsLit)+' to go',2);say(['Light flickers to life.','Four left.','Halfway. Keep moving.','One more beacon.'][P.beaconsLit-1]||'',3);}
+  if(!NET.co){
+    if(P.beaconsLit>=5)openEscape();
+    else {banner('BEACON '+P.beaconsLit+' LIT',(5-P.beaconsLit)+' to go',2);say(['Light flickers to life.','Four left.','Halfway. Keep moving.','One more beacon.'][P.beaconsLit-1]||'',3);}
+  } else {
+    banner('A BEACON FLARES','One more is lit',1.6);
+  }
   updHud();
 }
+
+/* ---------- co-op: remote players ---------- */
+const surveyMat=new THREE.MeshStandardMaterial({color:0x6a5a3a,roughness:0.9});
+const vestOMat=new THREE.MeshStandardMaterial({color:0xcf6a2a,roughness:0.7,emissive:0x220a00});
+const headMat=new THREE.MeshStandardMaterial({color:0xcbb89a,roughness:0.9});
+function makeRemote(name){
+  const g=new THREE.Group();
+  const add=(geo,mat,x,y,z,par=g)=>{const m=new THREE.Mesh(geo,mat);m.position.set(x,y,z);m.castShadow=true;par.add(m);return m;};
+  add(new THREE.CylinderGeometry(0.2,0.24,0.9,7),surveyMat,0,1.2,0);
+  add(new THREE.BoxGeometry(0.5,0.42,0.34),vestOMat,0,1.35,0);
+  add(new THREE.SphereGeometry(0.2,10,8),headMat,0,1.85,0);
+  const lampHub=add(new THREE.BoxGeometry(0.14,0.1,0.1),new THREE.MeshStandardMaterial({color:0x222,roughness:0.5}),0,1.88,-0.18);
+  const hipL=new THREE.Group(),hipR=new THREE.Group();hipL.position.set(-0.11,0.78,0);hipR.position.set(0.11,0.78,0);g.add(hipL,hipR);
+  add(new THREE.CylinderGeometry(0.09,0.07,0.9,6),surveyMat,0,-0.45,0,hipL);add(new THREE.CylinderGeometry(0.09,0.07,0.9,6),surveyMat,0,-0.45,0,hipR);
+  const lamp=new THREE.PointLight(0xfff0d0,0,9,2);lamp.position.set(0,1.88,-0.3);g.add(lamp);
+  const tagCv=document.createElement('canvas');tagCv.width=256;tagCv.height=64;const tg=tagCv.getContext('2d');tg.fillStyle='#d7dde6';tg.font='600 34px Oswald, sans-serif';tg.textAlign='center';tg.fillText(String(name||'Ranger').slice(0,14),128,42);
+  const tagTex=new THREE.CanvasTexture(tagCv);const tag=new THREE.Sprite(new THREE.SpriteMaterial({map:tagTex,transparent:true,depthWrite:false}));tag.scale.set(2,0.5,1);tag.position.y=2.35;g.add(tag);
+  scene.add(g);
+  return {g,hipL,hipR,lamp,tag,tagTex,x:0,z:0,yaw:0,rx:0,rz:0,ryaw:0,walk:0,alive:true,light:false};
+}
+function removeRemote(e){scene.remove(e.g);if(e.tagTex)e.tagTex.dispose();}
+function renderRemotes(dt){
+  for(const e of NET.players.values()){const v=e.v;if(!v)continue;const k=Math.min(1,dt*12),ox=v.rx,oz=v.rz;
+    v.rx+=(v.x-v.rx)*k;v.rz+=(v.z-v.rz)*k;v.ryaw+=angDiff(v.ryaw,v.yaw)*k;
+    const sp=Math.hypot(v.rx-ox,v.rz-oz)/Math.max(dt,1e-3);v.walk+=sp*dt*2;const sw=Math.sin(v.walk)*Math.min(1,sp/2)*0.6;
+    v.hipL.rotation.x=sw;v.hipR.rotation.x=-sw;
+    v.g.position.set(v.rx,0,v.rz);v.g.rotation.y=v.ryaw;v.g.visible=v.alive;v.lamp.intensity=v.light?3:0;
+  }
+}
+function popc(n){let c=0;while(n){c+=n&1;n>>=1;}return c;}
+function applyWorldBits(bk,fk,rk){
+  for(let i=0;i<beacons.length;i++)if((bk>>i&1)&&!beacons[i].lit){const b=beacons[i];b.lit=true;b.bulbMat.emissive.setHex(0x3fd89a);b.bulbMat.color.setHex(0x9fe8c6);b.light.intensity=1.4;b.ping=1;}
+  for(let i=0;i<fuels.length;i++)if((fk>>i&1)&&!fuels[i].taken){fuels[i].taken=true;scene.remove(fuels[i].g);}
+  for(let i=0;i<rations.length;i++)if((rk>>i&1)&&!rations[i].taken){rations[i].taken=true;scene.remove(rations[i].g);}
+  P.beaconsLit=popc(bk);
+  if(P.beaconsLit>=5&&!escapePt)openEscape();
+  updHud();
+}
+function netTick(dt){
+  if(!NET.co||!net){return;}
+  NET.frame++;
+  // gather peers
+  const present=[{peer:myPeer,me:true,pr:localPresence()}];
+  if(net.peers)for(const q of net.peers()){if(q.sameTab)continue;const pr=q.presence;if(!pr||!pr.co)continue;present.push({peer:q.peer,me:false,pr});}
+  // host = lowest peer label
+  let host=null;for(const e of present)if(!host||e.peer<host.peer)host=e;
+  if(myPeer==='me'&&present.length>1){const o=present.filter(e=>!e.me).sort((a,b)=>a.peer<b.peer?-1:1)[0];if(o)host=o;}
+  NET.isHost=!!(host&&host.me);NET.hostPeer=host?host.peer:null;
+  // OR-merge world bits across everyone
+  let bk=0,fk=0,rk=0;for(const e of present){bk|=(+e.pr.bk||0);fk|=(+e.pr.fk||0);rk|=(+e.pr.rk||0);}
+  applyWorldBits(bk,fk,rk);
+  // remote player meshes
+  const seen=new Set();
+  for(const e of present){if(e.me)continue;seen.add(e.peer);let r=NET.players.get(e.peer);if(!r){r={v:makeRemote(e.pr.n)};NET.players.set(e.peer,r);}const v=r.v;v.x=+e.pr.x||0;v.z=+e.pr.z||0;v.yaw=+e.pr.y||0;v.alive=!!e.pr.a;v.light=!!e.pr.l;}
+  for(const[id,r]of[...NET.players]){if(!seen.has(id)){removeRemote(r.v);NET.players.delete(id);}}
+  // host authoritative: hunter already simmed in loop; compute catches + ov
+  if(NET.isHost){
+    // down set: catches computed in stepHunter via NET.down
+    // win: any alive player reached flare
+    let anyEsc=false,anyAlive=false;
+    for(const e of present){if(e.me){if(P.esc)anyEsc=true;if(P.alive)anyAlive=true;}else{if(e.pr.esc)anyEsc=true;if(e.pr.a)anyAlive=true;}}
+    if(!NET.ov){ if(anyEsc){NET.ov='win';} else if(!anyAlive){NET.ov='lost';} }
+    if(NET.ov&&!NET._ovfired){NET._ovfired=true;setTimeout(()=>{NET.ov==='win'?win():coopLost();},300);}
+  } else if(host){
+    // apply host state
+    const hp=host.pr;
+    if(hp.hx!==undefined){hunter.g.visible=!!hp.hv;hunter.x=+hp.hx;hunter.z=+hp.hz;hunter.yaw=+hp.hyaw;hunter.state=['idle','patrol','hunt','chase'][+hp.hst||0];}
+    if(Array.isArray(hp.down)&&hp.down.indexOf(myPeer)>=0&&P.alive&&!P.escaped){die();}
+    if(hp.ov&&!NET._ovfired){NET._ovfired=true;setTimeout(()=>{hp.ov==='win'?win():coopLost();},300);}
+    animateHunter(dt);localHunterFX(dt);
+  }
+  // send my presence ~15/s
+  NET.sendT-=dt;if(net.presence&&NET.sendT<=0){NET.sendT=0.066;NET.beat=(NET.beat+1)%1000;net.presence(localPresence()).catch(()=>{});}
+}
+function localPresence(){
+  const pr={n:playerName,co:1,x:+P.pos.x.toFixed(2),z:+P.pos.z.toFixed(2),y:+P.yaw.toFixed(2),c:P.crouch?1:0,l:P.light?1:0,a:P.alive?1:0,esc:P.escaped?1:0,bk:myBits.bk,fk:myBits.fk,rk:myBits.rk,ep:NET.ep,df:difficulty,t:NET.beat};
+  if(NET.isHost){pr.hx=+hunter.x.toFixed(2);pr.hz=+hunter.z.toFixed(2);pr.hyaw=+hunter.yaw.toFixed(2);pr.hst=['idle','patrol','hunt','chase'].indexOf(hunter.state);pr.hv=hunter.g.visible?1:0;pr.down=Object.keys(NET.down);pr.ov=NET.ov||null;}
+  return pr;
+}
+const myBits={bk:0,fk:0,rk:0};
+function coopLost(){ if(state==='won')return; state='dead'; best=Math.max(best||0,P.beaconsLit);store.set('best',best); $('pauseMsg').textContent='Your team was taken with '+P.beaconsLit+' of 5 beacons lit on '+D.name+'.'; $('tab-pause').querySelector('#resumeBtn').textContent='Back to woods'; setMenu('pause'); }
 
 /* ---------- player step ---------- */
 function stepPlayer(dt){
@@ -748,60 +954,70 @@ function stepPlayer(dt){
 }
 
 /* ---------- hunter AI ---------- */
-function stepHunter(dt){
-  const H=hunter;if(!H)return;
-  if(H.spawnDelay>0){H.spawnDelay-=dt;if(H.spawnDelay<=0){H.g.visible=true;H.state='patrol';H.wp=openPoint(20,R-6);sfx.growl();say('A branch snaps somewhere behind you.',3);}else return;}
-  H.t+=dt;
-  const dxp=P.pos.x-H.x,dzp=P.pos.z-H.z,dist=Math.hypot(dxp,dzp);
-  // perception
-  const clear=losClear(H.x,H.z,P.pos.x,P.pos.z);
-  // sight range depends on player's light and crouch; much larger if flashlight on
-  let sightR=(P.light?34:P.crouch?8:15)*D.sight;
-  // facing toward player? hunter sees in a wide cone
-  const toP=Math.atan2(dxp,-dzp);const facing=Math.abs(angDiff(H.yaw,toP))<1.5;
-  const canSee=clear&&dist<sightR&&(facing||dist<6);
-  // hearing: noise draws it
-  if(clear&&dist<22){H.alert=Math.max(H.alert,P.noise*(1-dist/22));if(P.noise>0.5&&dist<16){H.wp={x:P.pos.x,z:P.pos.z};}}
-  if(canSee){
-    if(H.state!=='chase'){sfx.spot();banner('',null,0);hud.whisper.style.opacity=1;}
-    H.state='chase';H.seen=1.8;H.target={x:P.pos.x,z:P.pos.z};H.alert=1;
-  }else if(H.seen>0){H.seen-=dt;if(H.seen<=0&&H.state==='chase'){H.state='hunt';H.wp={x:P.pos.x,z:P.pos.z};say('You slipped its gaze. Stay down.',2.5);}}
-  // move
-  let aimX,aimZ,sp=H.speed;
-  if(H.state==='chase'){aimX=P.pos.x;aimZ=P.pos.z;sp=P.crouch?D.chaseSpeed*0.56:D.chaseSpeed;H.target={x:P.pos.x,z:P.pos.z};}
-  else if(H.state==='hunt'&&H.wp){aimX=H.wp.x;aimZ=H.wp.z;sp=4.2;if(Math.hypot(H.wp.x-H.x,H.wp.z-H.z)<1.5){H.wp=openPoint(14,R-6);H.state='patrol';H.alert*=0.4;}}
-  else{if(!H.wp||Math.hypot(H.wp.x-H.x,H.wp.z-H.z)<1.6)H.wp=H.alert>0.3?{x:P.pos.x+rand(-10,10),z:P.pos.z+rand(-10,10)}:openPoint(14,R-6);aimX=H.wp.x;aimZ=H.wp.z;sp=2.4+H.alert*1.6;}
-  const desired=Math.atan2(aimX-H.x,-(aimZ-H.z));
-  // steer around colliders: if blocked ahead, nudge
-  H.yaw+=angDiff(H.yaw,desired)*Math.min(1,dt*(H.state==='chase'?6:3));
-  const nx=H.x+Math.sin(H.yaw)*sp*dt,nz=H.z-Math.cos(H.yaw)*sp*dt;
-  const np={x:nx,z:nz};let blocked=false;for(const c of colliders){if((c.x-nx)**2+(c.z-nz)**2<(c.r+0.5)**2){blocked=true;break;}}
-  if(blocked){H.yaw+=(rnd()<.5?1:-1)*1.1*dt*4;}else{H.x=nx;H.z=nz;}
-  const d=Math.hypot(H.x,H.z);if(d>R-1){H.x=H.x/d*(R-1);H.z=H.z/d*(R-1);}
-  // animate
-  H.walk+=sp*dt*1.8;const sw=Math.sin(H.walk)*0.7;H.hipL.rotation.x=sw;H.hipR.rotation.x=-sw;H.shL.rotation.x=0.3-sw*0.5;H.shR.rotation.x=0.3+sw*0.5;
+function allPlayerPoints(){
+  const list=[{x:P.pos.x,z:P.pos.z,alive:P.alive,me:true,peer:myPeer,crouch:P.crouch,light:P.light,noise:P.noise}];
+  if(NET.co)for(const[id,r]of NET.players){const v=r.v;list.push({x:v.x,z:v.z,alive:v.alive,me:false,peer:id,crouch:0,light:v.light,noise:v.light?0.6:0.4});}
+  return list;
+}
+function animateHunter(dt){
+  const H=hunter;H.walk+=(H._sp||2)*dt*1.8;const sw=Math.sin(H.walk)*0.7;
+  H.hipL.rotation.x=sw;H.hipR.rotation.x=-sw;H.shL.rotation.x=0.3-sw*0.5;H.shR.rotation.x=0.3+sw*0.5;
   H.g.position.set(H.x,0,H.z);H.g.rotation.y=H.yaw;
   H.eye.intensity=H.state==='chase'?2.2:H.alert>0.4?0.8:0;
   H.skin.emissive.setHex(H.state==='chase'?0x201010:0x0a0a0a);
-  // growl cue
-  H.growlCd-=dt;if(H.growlCd<=0){H.growlCd=H.state==='chase'?1.4:rand(5,11);if(dist<28)sfx.growl();}
-  // catch
-  if(dist<1.4&&H.state==='chase'){die();}
-  // fear meter: proximity + chase
+}
+function localHunterFX(dt){
+  const H=hunter;const dist=Math.hypot(H.x-P.pos.x,H.z-P.pos.z);
   const fear=clamp((1-dist/26),0,1)*(H.state==='chase'?1:0.6)*(H.g.visible?1:0);
   hud.fear.style.opacity=(fear*0.85).toFixed(2);
   hud.fear.style.background='radial-gradient(ellipse at center,transparent '+(30-fear*18)+'%,rgba(120,10,8,'+(fear*0.5).toFixed(2)+') 80%)';
   if(droneGain)droneGain.gain.setTargetAtTime(fear*0.5,actx.currentTime,0.2);
-  if(heartGain){const hb=clamp(fear,0,1);if(hb>0.25){heartbeat(lerp(1.1,0.42,hb));}}
-  hud.whisper.style.opacity=H.state==='chase'?1:lerp(parseFloat(hud.whisper.style.opacity)||0,0,0.2);
-  // escape reach
-  if(escapePt&&Math.hypot(escapePt.x-P.pos.x,escapePt.z-P.pos.z)<2.4)win();
+  if(heartGain){const hb=clamp(fear,0,1);if(hb>0.25)heartbeat(lerp(1.1,0.42,hb));}
+  hud.whisper.style.opacity=(H.state==='chase'&&dist<24)?1:lerp(parseFloat(hud.whisper.style.opacity)||0,0,0.2);
+  // startle flash: close & behind
+  if(H.g.visible&&H.state==='chase'&&P.alive){const toH=Math.atan2(H.x-P.pos.x,-(H.z-P.pos.z));if(dist<5&&Math.abs(angDiff(P.yaw,toH))>2.2&&jumpT<=0&&Math.random()<dt*1.4)jumpscare(0.45,false);}
+  if(escapePt&&P.alive&&Math.hypot(escapePt.x-P.pos.x,escapePt.z-P.pos.z)<2.4){ if(NET.co){P.esc=1;} else win(); }
+}
+function stepHunter(dt){
+  const H=hunter;if(!H)return;
+  if(H.spawnDelay>0){H.spawnDelay-=dt;if(H.spawnDelay<=0){H.g.visible=true;H.state='patrol';H.wp=openPoint(20,R-6);sfx.growl();if(!NET.co||NET.isHost)say('A branch snaps somewhere behind you.',3);}else{ if(!NET.co)localHunterFX(dt); return; }}
+  H.t+=dt;
+  // choose nearest visible/alive player as the quarry
+  const players=allPlayerPoints().filter(q=>q.alive);
+  let tgt=null,tdist=1e9;for(const q of players){const d=Math.hypot(q.x-H.x,q.z-H.z);if(d<tdist){tdist=d;tgt=q;}}
+  if(!tgt){ if(!NET.co)localHunterFX(dt); animateHunter(dt); return; }
+  const dxp=tgt.x-H.x,dzp=tgt.z-H.z,dist=tdist;
+  const clear=losClear(H.x,H.z,tgt.x,tgt.z);
+  let sightR=(tgt.light?34:tgt.crouch?8:15)*D.sight;
+  const toP=Math.atan2(dxp,-dzp);const facing=Math.abs(angDiff(H.yaw,toP))<1.5;
+  const canSee=clear&&dist<sightR&&(facing||dist<6);
+  if(clear&&dist<22){H.alert=Math.max(H.alert,(tgt.noise||0.4)*(1-dist/22));if((tgt.noise||0)>0.5&&dist<16)H.wp={x:tgt.x,z:tgt.z};}
+  if(canSee){if(H.state!=='chase'&&tgt.me){sfx.spot();hud.whisper.style.opacity=1;if(dist<9)jumpscare(0.5,false);}H.state='chase';H.seen=1.8;H.alert=1;H._quarry=tgt.peer;}
+  else if(H.seen>0){H.seen-=dt;if(H.seen<=0&&H.state==='chase'){H.state='hunt';H.wp={x:tgt.x,z:tgt.z};if(tgt.me)say('You slipped its gaze. Stay down.',2.5);}}
+  let aimX,aimZ,sp=H.speed;
+  if(H.state==='chase'){aimX=tgt.x;aimZ=tgt.z;sp=tgt.crouch?D.chaseSpeed*0.56:D.chaseSpeed;}
+  else if(H.state==='hunt'&&H.wp){aimX=H.wp.x;aimZ=H.wp.z;sp=4.2;if(Math.hypot(H.wp.x-H.x,H.wp.z-H.z)<1.5){H.wp=openPoint(14,R-6);H.state='patrol';H.alert*=0.4;}}
+  else{if(!H.wp||Math.hypot(H.wp.x-H.x,H.wp.z-H.z)<1.6)H.wp=H.alert>0.3?{x:tgt.x+rand(-10,10),z:tgt.z+rand(-10,10)}:openPoint(14,R-6);aimX=H.wp.x;aimZ=H.wp.z;sp=2.4+H.alert*1.6;}
+  H._sp=sp;
+  const desired=Math.atan2(aimX-H.x,-(aimZ-H.z));
+  H.yaw+=angDiff(H.yaw,desired)*Math.min(1,dt*(H.state==='chase'?6:3));
+  const nx=H.x+Math.sin(H.yaw)*sp*dt,nz=H.z-Math.cos(H.yaw)*sp*dt;
+  let blocked=false;for(const c of colliders){if((c.x-nx)**2+(c.z-nz)**2<(c.r+0.5)**2){blocked=true;break;}}
+  if(blocked){H.yaw+=(rnd()<.5?1:-1)*1.1*dt*4;}else{H.x=nx;H.z=nz;}
+  const d=Math.hypot(H.x,H.z);if(d>R-1){H.x=H.x/d*(R-1);H.z=H.z/d*(R-1);}
+  animateHunter(dt);
+  H.growlCd-=dt;if(H.growlCd<=0){H.growlCd=H.state==='chase'?1.4:rand(5,11);const dl=Math.hypot(H.x-P.pos.x,H.z-P.pos.z);if(dl<28)sfx.growl();}
+  // catch nearest
+  if(dist<1.4&&H.state==='chase'){ if(tgt.me){die();} else { NET.down[tgt.peer]=1; } }
+  localHunterFX(dt);
 }
 
 /* ---------- ambient scares ---------- */
 let scareCd=rand(14,26);
 function ambient(dt){
   scareCd-=dt;if(scareCd<=0){scareCd=rand(16,34);const r=Math.random();if(r<0.4)sfx.branch();else if(r<0.7){nz(0.5,0.12,220);}else{sfx.growl();if(S.subtitles&&Math.random()<0.5)say('Something moves in the dark.',2.5);}}
+  // startle flash when it's very close and hunting you from behind
+  if(hunter&&hunter.g.visible&&hunter.state==='chase'){const hd=Math.hypot(hunter.x-P.pos.x,hunter.z-P.pos.z);const toH=Math.atan2(hunter.x-P.pos.x,-(hunter.z-P.pos.z));if(hd<5&&Math.abs(angDiff(P.yaw,toH))>2.2&&jumpT<=0&&Math.random()<dt*1.5)jumpscare(0.45,false);}
   // beacon pulse + fuel bob
   for(const b of beacons){if(b.ping>0){b.ping-=dt*0.6;b.light.intensity=1.2+Math.sin(performance.now()/120)*0.4+b.ping*2;}else if(b.lit){b.light.intensity=1.3+Math.sin(performance.now()/400+b.x)*0.25;}}
   for(const f of fuels){if(!f.taken){f.t+=dt;f.g.position.y=0.25+Math.sin(f.t*1.5)*0.06;f.g.rotation.y+=dt*0.6;f.glow.intensity=0.5+Math.sin(f.t*3)*0.15;}}
@@ -814,6 +1030,7 @@ function fx(dt){
   bannerT=Math.max(0,bannerT-dt);hud.banner.style.opacity=bannerT>0.4?1:0;
   subT=Math.max(0,subT-dt);hud.sub.style.opacity=subT>0.4?1:0;
   if(flashT>0){flashT-=dt;hud.flashfx.style.opacity=(flashT>0?Math.min(1,flashT*2):0).toFixed(2);}
+  if(jumpT>0){jumpT-=dt;if(jumpT<=0){jumpEl.classList.remove('show');jumpEl.style.opacity=0;}else jumpEl.style.opacity=Math.min(1,jumpT*3).toFixed(2);}
   // starving haze
   if(P.hunger<22&&state==='play'){hud.grade.style.background='radial-gradient(ellipse at center,transparent '+(42-(22-P.hunger))+'%,rgba(0,0,0,.8) 100%)';}else{hud.grade.style.background='';}
   // low-battery flicker
@@ -833,11 +1050,12 @@ function loop(){
     ftAvg+=(Math.min(raw,0.1)*1000-ftAvg)*0.05;resT+=raw;const floor=Math.min(1,DPR_MAX);
     if(resT>1.2){resT=0;if(ftAvg>23&&dpr>floor){dpr=Math.max(floor,dpr-0.2);renderer.setPixelRatio(dpr);resize();}else if(ftAvg<14&&dpr<DPR_MAX){dpr=Math.min(DPR_MAX,dpr+0.15);renderer.setPixelRatio(dpr);resize();}}
     P.time+=dt;
-    stepPlayer(dt);stepHunter(dt);ambient(dt);
+    stepPlayer(dt);
+    if(NET.co){netTick(dt);if(NET.isHost)stepHunter(dt);renderRemotes(dt);}else{stepHunter(dt);}
+    ambient(dt);
     compT-=dt;if(compT<=0){compT=0.05;drawCompass();}
   }else if(state==='dead'||state==='won'){
-    stepHunter(dt);// let grab animation/physics settle a touch
-    if(P.grabbed>0){/* handled in fx */}
+    if(NET.co){netTick(dt);renderRemotes(dt);}else{stepHunter(dt);}
   }else if(state==='menu'||state==='how'||state==='set'||state==='paused'){
     if(state!=='paused'){menuT+=dt*0.04;camera.position.set(Math.cos(menuT)*14,4,Math.sin(menuT)*14);camera.lookAt(0,2,0);if(Math.abs(camera.fov-baseFov)>0.01){camera.fov=baseFov;camera.updateProjectionMatrix();}}
   }
@@ -848,7 +1066,28 @@ function loop(){
 /* ---------- boot ---------- */
 buildForest();
 makeHunter();hunter.g.visible=false;
+function hashCode(str){let h=2166136261>>>0;for(let i=0;i<str.length;i++){h^=str.charCodeAt(i);h=Math.imul(h,16777619);}return h>>>0;}
+async function getBaseRoom(){ if(baseRoom)return baseRoom; try{ baseRoom = window.__HPnet? window.__HPnet('lobby') : (window.claude&&window.claude.use? await window.claude.use('room'):null);}catch(e){baseRoom=null;} return baseRoom; }
+async function initLobby(){
+  const r=await getBaseRoom(); if(!r){ $('onlineLine').textContent=''; return; }
+  try{ r.onPeers&&r.onPeers(ch=>{lobby=ch.peers;const me=ch.peers.find(p=>p.sameTab);if(me)myPeer=me.peer;renderOnline();}); }catch(e){}
+  r.presence&&r.presence({n:playerName,st:'menu'}).catch(()=>{});
+  renderOnline();
+}
+function renderOnline(){
+  const el=$('onlineLine'); if(gameMode!=='coop'){el.textContent='';return;}
+  if(!baseRoom){el.textContent='Offline — co-op needs a connection; you will play solo.';return;}
+  const n=lobby.length||1; el.textContent=n>1?(n+' players online — share your match code to team up'):'Only you online — friends who open the link and type the same code join you.';
+}
+async function joinMatch(code){
+  const r=await getBaseRoom(); if(!r||!r.join)return null;
+  try{ return await Promise.race([r.join('hp-'+(code||'open')), new Promise(res=>setTimeout(()=>res(null),6000))]); }catch(e){return null;}
+}
+function setMode(m){ gameMode=m; store.set('mode',m); $('codeWrap').hidden=m!=='coop'; document.querySelectorAll('#modeSeg button').forEach(b=>b.setAttribute('aria-pressed',String(b.dataset.mode===m))); renderOnline(); }
+document.querySelectorAll('#modeSeg button').forEach(b=>b.onclick=()=>setMode(b.dataset.mode));
+$('codeIn').oninput=e=>{matchCode=e.target.value.replace(/[^a-z0-9-]/gi,'').slice(0,18).toLowerCase();store.set('code',matchCode);};
 renderSettings();renderDiffs();applyQuality();applySettings();refreshBest();
+$('codeIn').value=matchCode;setMode(gameMode);initLobby();
 setMenu('main');
 loop();
 })();
